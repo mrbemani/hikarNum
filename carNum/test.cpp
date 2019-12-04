@@ -17,6 +17,7 @@
 //-------------------------------------------------------------------------
 //头文件
 
+#include <stdio.h>
 #include <iostream>
 #include <fstream> 
 #include <string>
@@ -37,10 +38,10 @@ LONG IUserID;	//摄像机设备
 NET_DVR_DEVICEINFO_V30 struDeviceInfo;	//设备信息
 
 
-char sDVRIP[20];	//抓拍摄像机设备IP地址
+char sDVRIP[20] = "192.168.62.64";	//抓拍摄像机设备IP地址
 short wDVRPort = 8000;	//设备端口号
-char sUserName[20] = { 0 };	//登录的用户名
-char sPassword[20] = { 0 };	//用户密码
+char sUserName[20] = "admin";	//登录的用户名
+char sPassword[20] = "jtsjy123456";	//用户密码
 string carNum;//车牌号							
 
 
@@ -51,7 +52,7 @@ void Show_SDK_Version(); //获取sdk版本
 void Connect();//设置连接事件与重连时间
 void Htime();//获取海康威视设备时间
 bool Login(char *sDVRIP, short wDVRPort, char *sUserName, char *sPassword);//注册摄像机设备
-void manualSnap();
+BOOL manualSnap(char outResult[255], BYTE vehicle_lane_number);
 void OnExit(void);//退出
 				  //---------------------------------------------------------------------------------------------------
 				  //函数定义
@@ -128,39 +129,10 @@ void Show_SDK_Version()
 }
 
 
-/*
-//交通抓拍结果(新报警消息)
-	case COMM_ITS_PLATE_RESULT: {
-		NET_ITS_PLATE_RESULT struITSPlateResult = { 0 };
-		memcpy(&struITSPlateResult, pAlarmInfo, sizeof(struITSPlateResult));
-		for (i = 0; i<struITSPlateResult.dwPicNum; i++)
-		{
-			printf("车牌号: %s\n", struITSPlateResult.struPlateInfo.sLicense); //车牌号
-			carNum = struITSPlateResult.struPlateInfo.sLicense;
-			/**
-			oFile << carNum << "," << sys.wYear << "-" << sys.wMonth << "-" << sys.wDay << " " << sys.wHour << ":" << sys.wMinute << ":" << sys.wSecond << endl; //保存车牌号到csv文件	
-			if ((struITSPlateResult.struPicInfo[i].dwDataLen != 0) && (struITSPlateResult.struPicInfo[i].byType == 1) || (struITSPlateResult.struPicInfo[i].byType == 2))
-			{
-				sprintf(filename, "./pic/%s_%d.jpg", struITSPlateResult.struPlateInfo.sLicense, i);
-				fSnapPic = fopen(filename, "wb");
-				fwrite(struITSPlateResult.struPicInfo[i].pBuffer, struITSPlateResult.struPicInfo[i].dwDataLen, 1, fSnapPic);
-				iNum++;
-				fclose(fSnapPic);
-			}
-			//车牌小图片
-			if ((struITSPlateResult.struPicInfo[i].dwDataLen != 0) && (struITSPlateResult.struPicInfo[i].byType == 0))
-			{
-				sprintf(filename, "./pic/1/%s_%d.jpg", struITSPlateResult.struPlateInfo.sLicense, i);
-				fSnapPicPlate = fopen(filename, "wb");
-				fwrite(struITSPlateResult.struPicInfo[i].pBuffer, struITSPlateResult.struPicInfo[i].dwDataLen, 1, \
-					fSnapPicPlate);
-				iNum++;
-				fclose(fSnapPicPlate);
-			}
-			*/
+
 
 // manual snap
-BOOL manualSnap(BYTE vehicle_lane_number = 1, char outResult[255])
+BOOL manualSnap(char outResult[255], BYTE vehicle_lane_number)
 {
 	NET_DVR_MANUALSNAP struManualSnap = { 0 };
 	NET_DVR_PLATE_RESULT struResult = { 0 };
@@ -171,15 +143,97 @@ BOOL manualSnap(BYTE vehicle_lane_number = 1, char outResult[255])
 	memset(&struManualSnap, 0, sizeof(struManualSnap));
 	memset(&struResult, 0, sizeof(struResult));
 
-	if (!NET_DVR_manualSnap(IUserID, &struManualSnap, &struResult))
+	if (!NET_DVR_ManualSnap(IUserID, &struManualSnap, &struResult))
 	{
+		DWORD err = NET_DVR_GetLastError();
+		printf("err: %ld", err);
 		return FALSE;
+	}
+
+	//车牌颜色
+	char strPlateColor[32] = { 0 };
+	switch (struResult.struPlateInfo.byColor)
+	{
+	case VCA_BLUE_PLATE:
+		sprintf(strPlateColor, "蓝色");
+		break;
+	case VCA_YELLOW_PLATE:
+		sprintf(strPlateColor, "黄色");
+		break;
+	case VCA_WHITE_PLATE:
+		sprintf(strPlateColor, "白色");
+		break;
+	case VCA_BLACK_PLATE:
+		sprintf(strPlateColor, "黑色");
+		break;
+	default:
+		sprintf(strPlateColor, "未知");
+		break;
+	}
+
+	char strPlateType[32] = { 0 };
+	switch (struResult.struPlateInfo.byPlateType)
+	{
+	case VCA_STANDARD92_PLATE:
+		sprintf(strPlateType, "标准民用车与军车");
+		break;
+	case VCA_STANDARD02_PLATE:
+		sprintf(strPlateType, "02式民用车牌");
+		break;
+	case VCA_WJPOLICE_PLATE:
+		sprintf(strPlateType, "武警车");
+		break;
+	case VCA_JINGCHE_PLATE:
+		sprintf(strPlateType, "警车");
+		break;
+	case STANDARD92_BACK_PLATE:
+		sprintf(strPlateType, "民用车双行尾牌");
+		break;
+	case VCA_SHIGUAN_PLATE:
+		sprintf(strPlateType, "使馆车牌");
+		break;
+	case VCA_NONGYONG_PLATE:
+		sprintf(strPlateType, "农用车牌");
+		break;
+	case VCA_MOTO_PLATE:
+		sprintf(strPlateType, "摩托车车牌");
+		break;
+	case NEW_ENERGY_PLATE:
+		sprintf(strPlateType, "新能源车车牌");
+		break;
+	default:
+		sprintf(strPlateType, "未知");
+		break;
 	}
 	
 	memset(outResult, 0, sizeof(outResult));
-	sprintf(outResult, "{%d|%s}", struResult.struPlateInfo.byPlateType, struResult.struPlateInfo.sLicense);
+	sprintf(outResult, 
+		"{\"confidence\": %d,"
+		" \"captureTime\": \"%s\","
+		" \"direction\": %d,"
+		" \"plateType\": \"%s\","
+		" \"plateColor\": \"%s\","
+		" \"brightness\": %d,"
+		" \"license\": \"%s\"}",
+		struResult.struPlateInfo.byEntireBelieve,
+		struResult.byAbsTime,
+		struResult.byCarDirectionType,
+		strPlateType,
+		strPlateColor,
+		struResult.struPlateInfo.byBright, 
+		struResult.struPlateInfo.sLicense
+	);
 
-	
+	if (struResult.struPlateInfo.byLicenseLen < 3) 
+	{
+		return FALSE;
+	}
+
+	if (struResult.struPlateInfo.byBright < 5) 
+	{
+		printf("[FAILED] license brightness is: %d\n", struResult.struPlateInfo.byBright);
+		return FALSE;
+	}
 
 	return TRUE;
 }
@@ -203,14 +257,17 @@ int main()
 	Login(sDVRIP, wDVRPort, sUserName, sPassword);	//注册设备
 	Htime(); //获取海康威视设备时间
 
-	
+	BYTE nLaneNumber = 1;
+	char snapResultJSON[255] = { 0 };
 
-	for (;;) {
-
-
+	while (!manualSnap(snapResultJSON, nLaneNumber)) 
+	{
+		Sleep(500);
 	}
+	
+	printf("%s\n", snapResultJSON);
 
-	Sleep(-1);
+
 	atexit(OnExit);//退出
 	return 0;
 
