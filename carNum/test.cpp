@@ -24,6 +24,7 @@
 #include <streambuf>
 #include "HCNetSDK.h"
 #include <time.h>
+#include "httpd.h"
 
 #pragma comment(lib,"HCNetSDK.lib")
 #pragma comment(lib,"PlayCtrl.lib")
@@ -249,6 +250,24 @@ void OnExit(void)
 	NET_DVR_Cleanup();//释放SDK资源	
 }
 
+int req_carnum(BYTE iLane, char result[255])
+{
+	//sprintf(result, "Hello, %d", iLane);
+	if (!manualSnap(result, iLane))
+	{
+		return TRUE;
+	}
+	else
+	{
+		return FALSE;
+	}
+}
+
+int _main()
+{
+	start_http_server(req_carnum);
+	return 0;
+}
 
 int main()
 {
@@ -257,6 +276,9 @@ int main()
 	Login(sDVRIP, wDVRPort, sUserName, sPassword);	//注册设备
 	Htime(); //获取海康威视设备时间
 
+	start_http_server(req_carnum);
+
+	/*
 	BYTE nLaneNumber = 1;
 	char snapResultJSON[255] = { 0 };
 
@@ -266,7 +288,7 @@ int main()
 	}
 	
 	printf("%s\n", snapResultJSON);
-
+	*/
 
 	atexit(OnExit);//退出
 	return 0;

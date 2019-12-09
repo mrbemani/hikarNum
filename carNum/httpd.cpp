@@ -6,13 +6,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include "httpd.h"
  
 #pragma comment (lib,"ws2_32")
-#define uPort 17888
-#define MAX_BUFFER   100000
-#define SENDBLOCK   200000
-#define SERVERNAME   "BI_HikarNum/0.1a"
-#define FileName   "HelloWorld.html"
  
 typedef struct _NODE_
 {
@@ -43,64 +39,69 @@ bool IoComplete(char* szRequest);     //数据包的校验函数
 bool AddClientList(SOCKET s,sockaddr_in addr);
 bool AddThreadList(HANDLE hThread,DWORD ThreadID);
 bool ParseRequest(char* szRequest, char* szResponse, BOOL &bKeepAlive);
- 
-//我们存放Html文件的目录
-char HtmlDir[512]={0};
- 
-void main()
+
+p_ts_http_callback_func _callback_func = NULL;
+BYTE capture_lane_number = 1;
+
+
+int start_http_server(p_ts_http_callback_func http_req_callback_func)
 {
  if (!InitSocket())
  {
   printf("InitSocket Error\n");
-  return;
+  return 1;
  }
  
- GetCurrentDirectory(512,HtmlDir);
- 
- strcat(HtmlDir,"\\HTML\\");
- 
- strcat(HtmlDir,FileName);
- //启动一个接受线程
+ if (!http_req_callback_func)
+ {
+	 printf("http callback cannot be null!");
+	 return 2;
+ }
+
+ _callback_func = http_req_callback_func;
+
+ // start a thread
  HANDLE hAcceptThread = CreateThread(NULL,0,AcceptThread,NULL,0,NULL);
  
- //在这里我们使用事件模型来实现我们的Web服务器
- //创建一个事件
+ // use an event model to initiate server
+ // create an event object
  WaitForSingleObject(hAcceptThread,INFINITE);
+
+ return 0;
 }
  
-DWORD WINAPI AcceptThread(LPVOID lpParam)   //接收线程
+DWORD WINAPI AcceptThread(LPVOID lpParam)   // receive thread
 {
- //创建一个监听套接字
- SOCKET sListen = WSASocket(AF_INET,SOCK_STREAM,0,NULL,0,WSA_FLAG_OVERLAPPED); //使用事件重叠的套接字
+ // create a listening socket
+ SOCKET sListen = WSASocket(AF_INET,SOCK_STREAM,0,NULL,0,WSA_FLAG_OVERLAPPED); // 使用事件重叠的套接字
  if (sListen==INVALID_SOCKET)
  {
   printf("Create Listen Error\n");
   return -1; 
  }
- //初始化本服务器的地址
+ // initialize server address
  sockaddr_in LocalAddr;
  LocalAddr.sin_addr.S_un.S_addr = INADDR_ANY;
  LocalAddr.sin_family = AF_INET;
  LocalAddr.sin_port = htons(uPort);
- //绑定套接字 80端口
  int Ret = bind(sListen,(sockaddr*)&LocalAddr,sizeof(LocalAddr));
  if (Ret==SOCKET_ERROR)
  {
   printf("Bind Error\n");
   return -1;
  }
- //监听
+ // start listening
  listen(sListen,5);
- //创建一个事件
+ // create an event
  WSAEVENT Event = WSACreateEvent();
  if (Event==WSA_INVALID_EVENT)
  {
   printf("Create WSAEVENT Error\n");
   closesocket(sListen);
-  CloseHandle(Event);     //创建事件失败 关闭套接字 关闭事件
+  CloseHandle(Event);     // creating event failed, closing socket, closing event.
   return -1;
  }
- //将我们的监听套接字与我们的事件进行关联属性为Accept
+ // 将监听套接字与事件进行关联属性为Accept
  WSAEventSelect(sListen,Event,FD_ACCEPT);
  WSANETWORKEVENTS NetWorkEvent;
  sockaddr_in ClientAddr;
@@ -315,85 +316,80 @@ bool IoComplete(char* szRequest)
 //分析数据包
 bool ParseRequest(char* szRequest, char* szResponse, BOOL &bKeepAlive)
 {
- char* p = NULL;
- p = szRequest;
- int n = 0;
- char* pTemp = strstr(p," "); //判断字符串str2是否是str1的子串。如果是，则该函数返回str2在str1中首次出现的地址；否则，返回NULL。
- n = pTemp - p;    //指针长度
-// pTemp = pTemp + n - 1; //将我们的指针下移
- //定义一个临时的缓冲区来存放我们
- char szMode[10]={0};
- char szFileName[10]={0};
- memcpy(szMode,p,n);   //将请求方法拷贝到szMode数组中
- if (strcmp(szMode,"GET")==0)  //一定要将Get写成大写
- { 
- //获取文件名
-  pTemp = strstr(pTemp," ");
-  pTemp = pTemp + 1;   //只有调试的时候才能发现这里的秘密
-  memcpy(szFileName,pTemp,1);
-  if (strcmp(szFileName,"/")==0)
-  {
-   strcpy(szFileName,FileName);
-  }
-  else
-  {
-   return false;
-  }
- }
- else
- {
-  return false;
- }
- // 分析链接类型
- pTemp = strstr(szRequest,"\nConnection: Keep-Alive");  //协议版本
- n = pTemp - p;
- if (p>0)
- {
-  bKeepAlive = TRUE;
- }
- else  //这里的设置是为了Proxy程序的运行
- {
-  bKeepAlive = TRUE;
- }
- //定义一个回显头
- char pResponseHeader[512]={0};
- char szStatusCode[20]={0};
- char szContentType[20]={0};
- strcpy(szStatusCode,"200 OK");
- strcpy(szContentType,"text/html");
- char szDT[128];
- struct tm *newtime;
- long ltime;
- time(<ime);
- newtime = gmtime(<ime);
- strftime(szDT, 128,"%a, %d %b %Y %H:%M:%S GMT", newtime);
- //读取文件
- //定义一个文件流指针
- FILE* fp = fopen(HtmlDir,"rb");
- fpos_t lengthActual = 0;
- int length = 0;
- char* BufferTemp = NULL;
- if (fp!=NULL)
- {
-  // 获得文件大小
-  fseek(fp, 0, SEEK_END);
-  fgetpos(fp, &lengthActual);
-  fseek(fp, 0, SEEK_SET);
-  //计算出文件的大小后我们进行分配内存
-  BufferTemp = (char*)malloc(sizeof(char)*((int)lengthActual));
-  length = fread(BufferTemp,1,(int)lengthActual,fp);
-  fclose(fp);
-  // 返回响应
-  sprintf(pResponseHeader, "HTTP/1.0 %s\r\nDate: %s\r\nServer: %s\r\nAccept-Ranges: bytes\r\nContent-Length: %d\r\nConnection: %s\r\nContent-Type: %s\r\n\r\n",
-   szStatusCode, szDT, SERVERNAME, length, bKeepAlive ? "Keep-Alive" : "close", szContentType);   //响应报文
- }
- //如果我们的文件没有找到我们将引导用户到另外的错误页面
- else
- {
- }
- strcpy(szResponse,pResponseHeader);
- strcat(szResponse,BufferTemp);
- free(BufferTemp);
- BufferTemp = NULL;
- return true;
+	char* p = NULL;
+	p = szRequest;
+	int n = 0;
+	char* pTemp = strstr(p, " "); //判断字符串str2是否是str1的子串。如果是，则该函数返回str2在str1中首次出现的地址；否则，返回NULL。
+	n = pTemp - p;    //指针长度
+   // pTemp = pTemp + n - 1; //将我们的指针下移
+	//定义一个临时的缓冲区来存放我们
+	char szMode[10] = { 0 };
+	char szFileName[128] = { 0 };
+	int pos_http_1_x = 0;
+	memcpy(szMode, p, n);   //将请求方法拷贝到szMode数组中
+	if (strcmp(szMode, "GET") == 0)  //一定要将Get写成大写
+	{
+		//获取文件名
+		pTemp = strstr(pTemp, " ");
+		pTemp = pTemp + 1;   //只有调试的时候才能发现这里的秘密
+		char* s_http_1_x = strstr(pTemp, " HTTP/1.");
+		pos_http_1_x = s_http_1_x - pTemp;
+		memcpy(szFileName, pTemp, pos_http_1_x);
+		printf("[%s] %s\n", szMode, szFileName);
+		if (strstr(szFileName, "/capture") == szFileName)
+		{
+			capture_lane_number = 1;
+			if (strcmp(szFileName, "/capture/2") == 0)
+			{
+				capture_lane_number = 2;
+			}
+			else if (strcmp(szFileName, "/capture/3") == 0)
+			{
+				capture_lane_number = 3;
+			}
+		}
+		else
+		{
+			return false;
+		}
+	}
+	else
+	{
+		return false;
+	}
+	// 分析链接类型
+	pTemp = strstr(szRequest, "\nConnection: Keep-Alive");  //协议版本
+	n = pTemp - p;
+	if (p > 0)
+	{
+		bKeepAlive = TRUE;
+	}
+	else  //这里的设置是为了Proxy程序的运行
+	{
+		bKeepAlive = TRUE;
+	}
+	//定义一个回显头
+	char pResponseHeader[512] = { 0 };
+	char szStatusCode[20] = { 0 };
+	char szContentType[20] = { 0 };
+	strcpy(szStatusCode, "200 OK");
+	strcpy(szContentType, "application/json"); // response mime type is JSON
+	char szDT[128];
+	struct tm *newtime;
+	time_t ltime;
+	time(&ltime);
+	newtime = gmtime(&ltime);
+	strftime(szDT, 128, "%a, %d %b %Y %H:%M:%S GMT", newtime);
+	// response data
+	int length = 0;
+	char BufferTemp[255] = { 0 };
+	_callback_func(capture_lane_number, BufferTemp);
+	//sprintf(BufferTemp, "Hello, world!");
+	length = strlen(BufferTemp);
+	// 返回响应
+	sprintf(pResponseHeader, "HTTP/1.0 %s\r\nDate: %s\r\nServer: %s\r\nAccept-Ranges: bytes\r\nContent-Length: %d\r\nConnection: %s\r\nContent-Type: %s\r\n\r\n",
+		szStatusCode, szDT, SERVERNAME, length, bKeepAlive ? "Keep-Alive" : "close", szContentType);   //响应报文
+	strcpy(szResponse,pResponseHeader);
+	strcat(szResponse,BufferTemp);
+	return true;
 }
