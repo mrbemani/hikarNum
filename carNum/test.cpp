@@ -130,6 +130,8 @@ BOOL manualSnap(char outResult[255], BYTE vehicle_lane_number)
 	struManualSnap.byLaneNo = min(6, max(vehicle_lane_number, 1));
 	struManualSnap.byOSDEnable = 1;
 
+	memset(outResult, 0, sizeof(outResult));
+
 	memset(&struManualSnap, 0, sizeof(struManualSnap));
 	memset(&struResult, 0, sizeof(struResult));
 
@@ -139,6 +141,7 @@ BOOL manualSnap(char outResult[255], BYTE vehicle_lane_number)
 		printf("err: %ld", err);
 		return FALSE;
 	}
+
 
 	//车牌颜色
 	char strPlateColor[32] = { 0 };
@@ -195,25 +198,8 @@ BOOL manualSnap(char outResult[255], BYTE vehicle_lane_number)
 		sprintf(strPlateType, "未知");
 		break;
 	}
-	
-	memset(outResult, 0, sizeof(outResult));
-	sprintf(outResult, 
-		"{\"plateConfidence\": %d,"
-		" \"direction\": %d,"
-		" \"plateType\": \"%s\","
-		" \"plateColor\": \"%s\","
-		" \"brightness\": %d,"
-		" \"license\": \"%s\"}",
-		struResult.struPlateInfo.byEntireBelieve,
-		struResult.byAbsTime,
-		struResult.byCarDirectionType,
-		strPlateType,
-		strPlateColor,
-		struResult.struPlateInfo.byBright, 
-		struResult.struPlateInfo.sLicense
-	);
 
-	if (struResult.struPlateInfo.byLicenseLen < 3) 
+	if (struResult.struPlateInfo.byLicenseLen < 5) 
 	{
 		return FALSE;
 	}
@@ -223,6 +209,21 @@ BOOL manualSnap(char outResult[255], BYTE vehicle_lane_number)
 		printf("[FAILED] license brightness is: %d\n", struResult.struPlateInfo.byBright);
 		return FALSE;
 	}
+
+	sprintf(outResult,
+		"{\"plateConfidence\": %d,"
+		" \"direction\": %d,"
+		" \"plateType\": \"%s\","
+		" \"plateColor\": \"%s\","
+		" \"brightness\": %d,"
+		" \"license\": \"%s\"}",
+		struResult.struPlateInfo.byEntireBelieve,
+		struResult.byCarDirectionType,
+		strPlateType,
+		strPlateColor,
+		struResult.struPlateInfo.byBright,
+		struResult.struPlateInfo.sLicense
+	);
 
 	return TRUE;
 }
@@ -276,7 +277,7 @@ int main()
 	}
 	
 	printf("%s\n", snapResultJSON);
-	*/
+	//*/
 
 	atexit(OnExit);//退出
 	return 0;

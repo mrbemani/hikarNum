@@ -383,10 +383,11 @@ bool ParseRequest(char* szRequest, char* szResponse, BOOL &bKeepAlive)
 	// response data
 	int length = 0;
 	char BufferTemp[255] = { 0 };
-	if (!_callback_func(capture_lane_number, BufferTemp)) 
+	if (!_callback_func(capture_lane_number, BufferTemp))
 	{
 		//sprintf(BufferTemp, "Hello, world!");
 		memset(BufferTemp, 0, 255);	
+		sprintf(BufferTemp, "null");
 	}
 	length = strlen(BufferTemp);
 	// 返回响应
