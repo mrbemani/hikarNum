@@ -383,8 +383,11 @@ bool ParseRequest(char* szRequest, char* szResponse, BOOL &bKeepAlive)
 	// response data
 	int length = 0;
 	char BufferTemp[255] = { 0 };
-	_callback_func(capture_lane_number, BufferTemp);
-	//sprintf(BufferTemp, "Hello, world!");
+	if (!_callback_func(capture_lane_number, BufferTemp)) 
+	{
+		//sprintf(BufferTemp, "Hello, world!");
+		memset(BufferTemp, 0, 255);	
+	}
 	length = strlen(BufferTemp);
 	// 返回响应
 	sprintf(pResponseHeader, "HTTP/1.0 %s\r\nDate: %s\r\nServer: %s\r\nAccept-Ranges: bytes\r\nContent-Length: %d\r\nConnection: %s\r\nContent-Type: %s\r\n\r\n",

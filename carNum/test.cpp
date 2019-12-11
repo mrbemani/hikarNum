@@ -198,8 +198,7 @@ BOOL manualSnap(char outResult[255], BYTE vehicle_lane_number)
 	
 	memset(outResult, 0, sizeof(outResult));
 	sprintf(outResult, 
-		"{\"confidence\": %d,"
-		" \"captureTime\": \"%s\","
+		"{\"plateConfidence\": %d,"
 		" \"direction\": %d,"
 		" \"plateType\": \"%s\","
 		" \"plateColor\": \"%s\","
@@ -244,11 +243,11 @@ int req_carnum(BYTE iLane, char result[255])
 	//sprintf(result, "Hello, %d", iLane);
 	if (!manualSnap(result, iLane))
 	{
-		return TRUE;
+		return FALSE;
 	}
 	else
 	{
-		return FALSE;
+		return TRUE;
 	}
 }
 
