@@ -119,6 +119,36 @@ void Show_SDK_Version()
 }
 
 
+// error number to text string
+void error_to_str(DWORD err, char err_str[255])
+{
+	switch (err) 
+	{
+	case NET_DVR_DVROPRATEFAILED:
+		sprintf(err_str, "DVR操作失败");
+		break;
+	case NET_DVR_DVRNORESOURCE:
+		sprintf(err_str, "DVR资源不足");
+		break;
+	case NET_DVR_BUSY:
+		sprintf(err_str, "设备忙");
+		break;
+	case NET_DVR_COMMANDTIMEOUT:
+		sprintf(err_str, "设备命令执行超时");
+		break;
+	case NET_DVR_NETWORK_RECV_TIMEOUT:
+		sprintf(err_str, "从设备接收数据超时");
+		break;
+	case NET_DVR_NETWORK_RECV_ERROR:
+		sprintf(err_str, "从设备接收数据失败");
+		break;
+	case NET_DVR_SOCKETCLOSE_ERROR:
+		sprintf(err_str, "socket连接中断，此错误通常是由于连接中断或目的地不可达");
+		break;
+	default:
+		sprintf(err_str, "未知错误[%ld]", err);
+	}
+}
 
 
 // manual snap
@@ -138,7 +168,9 @@ BOOL manualSnap(char outResult[255], BYTE vehicle_lane_number)
 	if (!NET_DVR_ManualSnap(IUserID, &struManualSnap, &struResult))
 	{
 		DWORD err = NET_DVR_GetLastError();
-		printf("err: %ld", err);
+		char err_str[255] = { 0 };
+		error_to_str(err, err_str);
+		printf("Error: %s\n", err_str);
 		return FALSE;
 	}
 
