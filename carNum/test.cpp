@@ -35,8 +35,9 @@ char sPassword[20] = "jtsjy123456";	//用户密码
 string carNum;//车牌号							
 
 
-				  //---------------------------------------------------------------------------------
-				  //函数声明
+//---------------------------------------------------------------------------------
+//函数声明
+BOOL CALLBACK MSesGCallback(LONG lCommand, NET_DVR_ALARMER *pAlarmer, char *pAlarmInfo, DWORD dwBufLen, void* pUser);
 void Init(void);//初始化
 void Show_SDK_Version(); //获取sdk版本
 void Connect();//设置连接事件与重连时间
@@ -296,6 +297,27 @@ int main()
 	Connect();//设置连接事件与重连时间			  	
 	Login(sDVRIP, wDVRPort, sUserName, sPassword);	//注册设备
 	Htime(); //获取海康威视设备时间
+
+	//Set alarm callback function
+	NET_DVR_SetDVRMessageCallBack_V31(MSesGCallback, NULL);
+	
+	//Enable arm
+	NET_DVR_SETUPALARM_PARAM struSetupParam = { 0 };
+	struSetupParam.dwSize = sizeof(NET_DVR_SETUPALARM_PARAM);
+	struSetupParam.byLevel = 1; //Arming level: 0- level 1 (high), 1- level 2 (medium)
+	struSetupParam.byAlarmInfoType = 1; //Uploaded alarm types: 0- History alarm (NET_DVR_PLATE_RESULT), 1- Real-time alarm (NET_ITS_PLATE_RESULT)
+
+	LONG lHandle = NET_DVR_SetupAlarmChan_V41(IUserID, &struSetupParam);
+	if (lHandle < 0)
+	{
+		printf("NET_DVR_SetupAlarmChan_V41 failed, error code: %d\n", NET_DVR_GetLastError());
+		OnExit();
+		return;
+	}
+	printf("Armed.\n");
+
+
+
 
 	start_http_server(req_carnum);
 
