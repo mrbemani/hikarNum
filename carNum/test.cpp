@@ -38,6 +38,7 @@ string carNum;//车牌号
 //---------------------------------------------------------------------------------
 //函数声明
 BOOL CALLBACK MSesGCallback(LONG lCommand, NET_DVR_ALARMER *pAlarmer, char *pAlarmInfo, DWORD dwBufLen, void* pUser);
+void error_to_str(DWORD err, char err_str[255]);
 void Init(void);//初始化
 void Show_SDK_Version(); //获取sdk版本
 void Connect();//设置连接事件与重连时间
@@ -150,6 +151,124 @@ void error_to_str(DWORD err, char err_str[255])
 		sprintf(err_str, "未知错误[%ld]", err);
 	}
 }
+
+
+// Alarm Callback function
+BOOL CALLBACK MSesGCallback(LONG lCommand, NET_DVR_ALARMER *pAlarmer, char *pAlarmInfo, DWORD dwBufLen, void* pUser)
+{
+	int i = 0;
+	char filename[100];
+	FILE *fSnapPic = NULL;
+	FILE *fSnapPicPlate = NULL;
+
+	//The following codes are for reference only. In the actual application, handle data and save file in the callback function is not suggested.
+	//For example, you can handle data in the message response function by using message format (PostMessage).
+
+	switch (lCommand)
+	{
+	case COMM_UPLOAD_PLATE_RESULT:
+	{
+		NET_DVR_PLATE_RESULT struPlateResult = { 0 };
+		memcpy(&struPlateResult, pAlarmInfo, sizeof(struPlateResult));
+		printf("License plate number: %s\n", struPlateResult.struPlateInfo.sLicense);//License plate number
+
+		switch (struPlateResult.struPlateInfo.byColor)//License plate color
+		{
+		case VCA_BLUE_PLATE:
+			printf("Vehicle Color: Blue\n");
+			break;
+		case VCA_YELLOW_PLATE:
+			printf("Vehicle Color: Yellow\n");
+			break;
+		case VCA_WHITE_PLATE:
+			printf("Vehicle Color: White\n");
+			break;
+		case VCA_BLACK_PLATE:
+			printf("Vehicle Color: Black\n");
+			break;
+		default:
+			break;
+		}
+
+		//Scene picture
+		if (struPlateResult.dwPicLen != 0 && struPlateResult.byResultType == 1)
+		{
+			sprintf(filename, "testpic_%d.jpg", iNum);
+			fSnapPic = fopen(filename, "wb");
+			fwrite(struPlateResult.pBuffer1, struPlateResult.dwPicLen, 1, fSnapPic);
+			iNum++;
+			fclose(fSnapPic);
+		}
+		//License plate picture
+		if (struPlateResult.dwPicPlateLen != 0 && struPlateResult.byResultType == 1)
+		{
+			sprintf(filename, "testPicPlate_%d.jpg", iNum);
+			fSnapPicPlate = fopen(filename, "wb");
+			fwrite(struPlateResult.pBuffer1, struPlateResult.dwPicLen, 1, fSnapPicPlate);
+			iNum++;
+			fclose(fSnapPicPlate);
+		}
+
+		//Handle other message...
+		break;
+	}
+	case COMM_ITS_PLATE_RESULT:
+	{
+		NET_ITS_PLATE_RESULT struITSPlateResult = { 0 };
+		memcpy(&struITSPlateResult, pAlarmInfo, sizeof(struITSPlateResult));
+
+		for (i = 0; i < struITSPlateResult.dwPicNum; i++)
+		{
+			printf("License plate number: %s\n", struITSPlateResult.struPlateInfo.sLicense);//License plate number
+
+			switch (struITSPlateResult.struPlateInfo.byColor)//License plate color
+			{
+			case VCA_BLUE_PLATE:
+				printf("Vehicle Color: Blue\n");
+				break;
+			case VCA_YELLOW_PLATE:
+				printf("Vehicle Color: Yellow\n");
+				break;
+			case VCA_WHITE_PLATE:
+				printf("Vehicle Color: White\n");
+				break;
+			case VCA_BLACK_PLATE:
+				printf("Vehicle Color: Black\n");
+				break;
+			default:
+				break;
+			}
+
+			//Save scene picture
+			if ((struITSPlateResult.struPicInfo[i].dwDataLen != 0) && (struITSPlateResult.struPicInfo[i].byType == 1) || (struITSPlateResult.struPicInfo[i].byType == 2))
+			{
+				sprintf(filename, "testITSpic%d_%d.jpg", iNum, i);
+				fSnapPic = fopen(filename, "wb");
+				fwrite(struITSPlateResult.struPicInfo[i].pBuffer, struITSPlateResult.struPicInfo[i].dwDataLen, 1, fSnapPic);
+				iNum++;
+				fclose(fSnapPic);
+			}
+			//License plate thumbnail
+			if ((struITSPlateResult.struPicInfo[i].dwDataLen != 0) && (struITSPlateResult.struPicInfo[i].byType == 0))
+			{
+				sprintf(filename, "testPicPlate%d_%d.jpg", iNum, i);
+				fSnapPicPlate = fopen(filename, "wb");
+				fwrite(struITSPlateResult.struPicInfo[i].pBuffer, struITSPlateResult.struPicInfo[i].dwDataLen, 1, fSnapPicPlate);
+				iNum++;
+				fclose(fSnapPicPlate);
+			}
+			//Handle other message...
+		}
+		break;
+	}
+	default:
+		break;
+	}
+
+	return TRUE;
+}
+
+
 
 
 // manual snap
