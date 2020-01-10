@@ -25,10 +25,11 @@ using namespace std;
 
 //参数声明
 LONG IUserID;	//摄像机设备
+LONG lAlarmHandle;	//布防句柄
 NET_DVR_DEVICEINFO_V30 struDeviceInfo;	//设备信息
 
 
-char sDVRIP[20] = "192.168.62.64";	//抓拍摄像机设备IP地址
+char sDVRIP[20] = "192.168.1.65";	//抓拍摄像机设备IP地址
 short wDVRPort = 8000;	//设备端口号
 char sUserName[20] = "admin";	//登录的用户名
 char sPassword[20] = "jtsjy123456";	//用户密码
@@ -166,57 +167,94 @@ BOOL CALLBACK MSesGCallback(LONG lCommand, NET_DVR_ALARMER *pAlarmer, char *pAla
 
 	switch (lCommand)
 	{
-	case COMM_UPLOAD_PLATE_RESULT:
-	{
-		NET_DVR_PLATE_RESULT struPlateResult = { 0 };
-		memcpy(&struPlateResult, pAlarmInfo, sizeof(struPlateResult));
-		printf("License plate number: %s\n", struPlateResult.struPlateInfo.sLicense);//License plate number
-
-		switch (struPlateResult.struPlateInfo.byColor)//License plate color
-		{
-		case VCA_BLUE_PLATE:
-			printf("Vehicle Color: Blue\n");
-			break;
-		case VCA_YELLOW_PLATE:
-			printf("Vehicle Color: Yellow\n");
-			break;
-		case VCA_WHITE_PLATE:
-			printf("Vehicle Color: White\n");
-			break;
-		case VCA_BLACK_PLATE:
-			printf("Vehicle Color: Black\n");
-			break;
-		default:
-			break;
-		}
-
-		//Scene picture
-		if (struPlateResult.dwPicLen != 0 && struPlateResult.byResultType == 1)
-		{
-			sprintf(filename, "testpic_%d.jpg", iNum);
-			fSnapPic = fopen(filename, "wb");
-			fwrite(struPlateResult.pBuffer1, struPlateResult.dwPicLen, 1, fSnapPic);
-			iNum++;
-			fclose(fSnapPic);
-		}
-		//License plate picture
-		if (struPlateResult.dwPicPlateLen != 0 && struPlateResult.byResultType == 1)
-		{
-			sprintf(filename, "testPicPlate_%d.jpg", iNum);
-			fSnapPicPlate = fopen(filename, "wb");
-			fwrite(struPlateResult.pBuffer1, struPlateResult.dwPicLen, 1, fSnapPicPlate);
-			iNum++;
-			fclose(fSnapPicPlate);
-		}
-
-		//Handle other message...
-		break;
-	}
+	
 	case COMM_ITS_PLATE_RESULT:
 	{
 		NET_ITS_PLATE_RESULT struITSPlateResult = { 0 };
 		memcpy(&struITSPlateResult, pAlarmInfo, sizeof(struITSPlateResult));
 
+		//车牌颜色
+		char strPlateColor[32] = { 0 };
+		switch (struITSPlateResult.struPlateInfo.byColor)
+		{
+		case VCA_BLUE_PLATE:
+			sprintf(strPlateColor, "蓝色");
+			break;
+		case VCA_YELLOW_PLATE:
+			sprintf(strPlateColor, "黄色");
+			break;
+		case VCA_WHITE_PLATE:
+			sprintf(strPlateColor, "白色");
+			break;
+		case VCA_BLACK_PLATE:
+			sprintf(strPlateColor, "黑色");
+			break;
+		default:
+			sprintf(strPlateColor, "未知");
+			break;
+		}
+
+		char strPlateType[32] = { 0 };
+		switch (struITSPlateResult.struPlateInfo.byPlateType)
+		{
+		case VCA_STANDARD92_PLATE:
+			sprintf(strPlateType, "标准民用车与军车");
+			break;
+		case VCA_STANDARD02_PLATE:
+			sprintf(strPlateType, "02式民用车牌");
+			break;
+		case VCA_WJPOLICE_PLATE:
+			sprintf(strPlateType, "武警车");
+			break;
+		case VCA_JINGCHE_PLATE:
+			sprintf(strPlateType, "警车");
+			break;
+		case STANDARD92_BACK_PLATE:
+			sprintf(strPlateType, "民用车双行尾牌");
+			break;
+		case VCA_SHIGUAN_PLATE:
+			sprintf(strPlateType, "使馆车牌");
+			break;
+		case VCA_NONGYONG_PLATE:
+			sprintf(strPlateType, "农用车牌");
+			break;
+		case VCA_MOTO_PLATE:
+			sprintf(strPlateType, "摩托车车牌");
+			break;
+		case NEW_ENERGY_PLATE:
+			sprintf(strPlateType, "新能源车车牌");
+			break;
+		default:
+			sprintf(strPlateType, "未知");
+			break;
+		}
+
+		if (struITSPlateResult.struPlateInfo.byLicenseLen < 5)
+		{
+			return FALSE;
+		}
+
+		if (struITSPlateResult.struPlateInfo.byBright < 5)
+		{
+			printf("[FAILED] license brightness is: %d\n", struITSPlateResult.struPlateInfo.byBright);
+			return FALSE;
+		}
+
+		sprintf(outResult,
+			"{\"plateConfidence\": %d,"
+			" \"plateType\": \"%s\","
+			" \"plateColor\": \"%s\","
+			" \"brightness\": %d,"
+			" \"license\": \"%s\"}",
+			struITSPlateResult.struPlateInfo.byEntireBelieve,
+			strPlateType,
+			strPlateColor,
+			struITSPlateResult.struPlateInfo.byBright,
+			struITSPlateResult.struPlateInfo.sLicense
+		);
+
+
+		/*
 		for (i = 0; i < struITSPlateResult.dwPicNum; i++)
 		{
 			printf("License plate number: %s\n", struITSPlateResult.struPlateInfo.sLicense);//License plate number
@@ -238,27 +276,8 @@ BOOL CALLBACK MSesGCallback(LONG lCommand, NET_DVR_ALARMER *pAlarmer, char *pAla
 			default:
 				break;
 			}
-
-			//Save scene picture
-			if ((struITSPlateResult.struPicInfo[i].dwDataLen != 0) && (struITSPlateResult.struPicInfo[i].byType == 1) || (struITSPlateResult.struPicInfo[i].byType == 2))
-			{
-				sprintf(filename, "testITSpic%d_%d.jpg", iNum, i);
-				fSnapPic = fopen(filename, "wb");
-				fwrite(struITSPlateResult.struPicInfo[i].pBuffer, struITSPlateResult.struPicInfo[i].dwDataLen, 1, fSnapPic);
-				iNum++;
-				fclose(fSnapPic);
-			}
-			//License plate thumbnail
-			if ((struITSPlateResult.struPicInfo[i].dwDataLen != 0) && (struITSPlateResult.struPicInfo[i].byType == 0))
-			{
-				sprintf(filename, "testPicPlate%d_%d.jpg", iNum, i);
-				fSnapPicPlate = fopen(filename, "wb");
-				fwrite(struITSPlateResult.struPicInfo[i].pBuffer, struITSPlateResult.struPicInfo[i].dwDataLen, 1, fSnapPicPlate);
-				iNum++;
-				fclose(fSnapPicPlate);
-			}
-			//Handle other message...
 		}
+		*/
 		break;
 	}
 	default:
@@ -386,6 +405,12 @@ void OnExit(void)
 {
 	std::cout << "Begin exit..." << std::endl;
 
+	//Disarming uploading channel
+	if (lAlarmHandle != NULL && !NET_DVR_CloseAlarmChan_V30(lAlarmHandle))
+	{
+		printf("NET_DVR_CloseAlarmChan_V30 error, %d\n", NET_DVR_GetLastError());
+	}
+
 	//释放相机
 	NET_DVR_Logout(IUserID);//注销用户
 	NET_DVR_Cleanup();//释放SDK资源	
@@ -426,17 +451,14 @@ int main()
 	struSetupParam.byLevel = 1; //Arming level: 0- level 1 (high), 1- level 2 (medium)
 	struSetupParam.byAlarmInfoType = 1; //Uploaded alarm types: 0- History alarm (NET_DVR_PLATE_RESULT), 1- Real-time alarm (NET_ITS_PLATE_RESULT)
 
-	LONG lHandle = NET_DVR_SetupAlarmChan_V41(IUserID, &struSetupParam);
-	if (lHandle < 0)
+	lAlarmHandle = NET_DVR_SetupAlarmChan_V41(IUserID, &struSetupParam);
+	if (lAlarmHandle < 0)
 	{
 		printf("NET_DVR_SetupAlarmChan_V41 failed, error code: %d\n", NET_DVR_GetLastError());
 		OnExit();
 		return;
 	}
 	printf("Armed.\n");
-
-
-
 
 	start_http_server(req_carnum);
 
