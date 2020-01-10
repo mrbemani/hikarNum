@@ -343,10 +343,6 @@ bool ParseRequest(char* szRequest, char* szResponse, BOOL &bKeepAlive)
 			{
 				capture_lane_number = 2;
 			}
-			else if (strcmp(szFileName, "/capture/3") == 0)
-			{
-				capture_lane_number = 3;
-			}
 		}
 		else
 		{
