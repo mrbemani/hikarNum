@@ -42,9 +42,9 @@ bool ParseRequest(char* szRequest, char* szResponse, BOOL &bKeepAlive);
 
 p_ts_http_callback_func _callback_func = NULL;
 BYTE capture_lane_number = 1;
+unsigned short uPort = 17000;
 
-
-int start_http_server(p_ts_http_callback_func http_req_callback_func)
+int start_http_server(unsigned short port, p_ts_http_callback_func http_req_callback_func)
 {
  if (!InitSocket())
  {
@@ -58,6 +58,7 @@ int start_http_server(p_ts_http_callback_func http_req_callback_func)
 	 return 2;
  }
 
+ uPort = port;
  _callback_func = http_req_callback_func;
 
  // start a thread
@@ -90,6 +91,7 @@ DWORD WINAPI AcceptThread(LPVOID lpParam)   // receive thread
   printf("Bind Error\n");
   return -1;
  }
+ printf("Start listening on: %s %d\n", INADDR_ANY, uPort);
  // start listening
  listen(sListen,5);
  // create an event

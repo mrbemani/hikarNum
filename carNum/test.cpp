@@ -28,9 +28,10 @@ LONG IUserID = NULL;	//摄像机设备
 LONG lAlarmHandle = NULL;	//布防句柄
 NET_DVR_DEVICEINFO_V30 struDeviceInfo;	//设备信息
 char plateResultBuff[255] = { 0 };	// 缓存BUFF
+BYTE laneNumber = 0; // 车道号
 time_t plateSnapTime = 0; // 抓取时间
 
-
+u_short HTTP_PORT = 17000;
 char sDVRIP[20] = "192.168.1.65";	//抓拍摄像机设备IP地址
 short wDVRPort = 8000;	//设备端口号
 char sUserName[20] = "admin";	//登录的用户名
@@ -111,6 +112,8 @@ void Htime() {
 bool Login(char *sDVRIP, short wDVRPort, char *sUserName, char *sPassword)
 {
 	IUserID = NET_DVR_Login_V30(sDVRIP, wDVRPort, sUserName, sPassword, &struDeviceInfo);
+
+	printf("Login to: %s\n", sDVRIP);
 
 	if (IUserID < 0)
 	{
@@ -247,6 +250,7 @@ BOOL CALLBACK MSesGCallback(LONG lCommand, NET_DVR_ALARMER *pAlarmer, char *pAla
 			break;
 		}
 
+		laneNumber = 0;
 		plateSnapTime = 0;
 		memset(plateResultBuff, 0, sizeof(plateResultBuff));
 
@@ -262,14 +266,18 @@ BOOL CALLBACK MSesGCallback(LONG lCommand, NET_DVR_ALARMER *pAlarmer, char *pAla
 			return TRUE;
 		}
 
+		laneNumber = 3 - struITSPlateResult.byDriveChan;
+
 		plateSnapTime = getLocalTimeStamp();
 		sprintf(plateResultBuff,
 			"{\"plateConfidence\": %d,"
+			" \"laneNumber\": %d,"
 			" \"plateType\": \"%s\","
 			" \"plateColor\": \"%s\","
 			" \"brightness\": %d,"
 			" \"license\": \"%s\"}",
 			struITSPlateResult.struPlateInfo.byEntireBelieve,
+			laneNumber,
 			strPlateType,
 			strPlateColor,
 			struITSPlateResult.struPlateInfo.byBright,
@@ -305,6 +313,7 @@ void OnExit(void)
 int req_carnum(BYTE iLane, char result[255])
 {
 	//sprintf(result, "Hello, %d", iLane);
+	if (iLane != laneNumber) return FALSE;
 	time_t now_t = getLocalTimeStamp();
 	if (now_t - plateSnapTime < 2)
 	{
@@ -318,14 +327,21 @@ int req_carnum(BYTE iLane, char result[255])
 	}
 }
 
-int _main()
+int main(int argc, char *argv[])
 {
-	start_http_server(req_carnum);
-	return 0;
-}
 
-int main()
-{
+	if (argc > 1) 
+	{
+		sprintf(sDVRIP, "%s", argv[1]);
+	}
+
+
+
+	if (argc > 2)
+	{
+		HTTP_PORT = atoi(argv[2]);
+	}
+
 	Init();//初始化sdk
 	Connect();//设置连接事件与重连时间			  	
 	Login(sDVRIP, wDVRPort, sUserName, sPassword);	//注册设备
@@ -350,7 +366,7 @@ int main()
 	printf("Armed.\n");
 
 	// start http server
-	start_http_server(req_carnum);
+	start_http_server(HTTP_PORT, req_carnum);
 
 	atexit(OnExit);//退出
 	return 0;
