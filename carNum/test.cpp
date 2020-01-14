@@ -250,10 +250,6 @@ BOOL CALLBACK MSesGCallback(LONG lCommand, NET_DVR_ALARMER *pAlarmer, char *pAla
 			break;
 		}
 
-		laneNumber = 0;
-		plateSnapTime = 0;
-		memset(plateResultBuff, 0, sizeof(plateResultBuff));
-
 		if (struITSPlateResult.struPlateInfo.byLicenseLen < 5)
 		{
 			plateSnapTime = 0;
@@ -266,7 +262,7 @@ BOOL CALLBACK MSesGCallback(LONG lCommand, NET_DVR_ALARMER *pAlarmer, char *pAla
 			return TRUE;
 		}
 
-		laneNumber = 3 - struITSPlateResult.byDriveChan;
+		laneNumber = struITSPlateResult.byDriveChan;
 
 		plateSnapTime = getLocalTimeStamp();
 		sprintf(plateResultBuff,
@@ -313,16 +309,22 @@ void OnExit(void)
 int req_carnum(BYTE iLane, char result[255])
 {
 	//sprintf(result, "Hello, %d", iLane);
-	if (iLane != laneNumber) return FALSE;
+	//if (iLane != laneNumber) return FALSE;
 	time_t now_t = getLocalTimeStamp();
-	if (now_t - plateSnapTime < 2)
+	time_t timegap = now_t - plateSnapTime;
+	printf("-------------------------------------------\n");
+	if (timegap < 5)
 	{
+		std::cout << "time OK: now_t=" << now_t << " plateSnapTime=" << plateSnapTime << " timegap=" << timegap << std::endl;
 		memcpy(result, plateResultBuff, sizeof(plateResultBuff));
+		printf("-------------------------------------------\n");
 		return TRUE;
 	}
 	else
 	{
+		std::cout << "time NG: now_t=" << now_t << " plateSnapTime=" << plateSnapTime << " timegap=" << timegap << std::endl;
 		memset(result, 0, sizeof(result));
+		printf("-------------------------------------------\n");
 		return FALSE;
 	}
 }

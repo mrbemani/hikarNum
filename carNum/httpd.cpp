@@ -2,7 +2,6 @@
 
 #include <Winsock2.h>
 #include <windows.h>
-#include <malloc.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -237,66 +236,48 @@ bool InitSocket()
  
 bool AddClientList(SOCKET s,sockaddr_in addr)
 {
- pNode pTemp = (pNode)malloc(sizeof(Node));
+ Node nTemp = { 0 };
  HANDLE hThread = NULL;
  DWORD ThreadID = 0;
- if (pTemp==NULL)
+ nTemp.s = s;
+ nTemp.Addr = addr;
+ nTemp.pNext = NULL;
+ if (pHead==NULL)
  {
-  printf("No Memory\n");
-  return false;
+  pHead = pTail = &nTemp;
  }
  else
  {
-  pTemp->s = s;
-  pTemp->Addr = addr;
-  pTemp->pNext = NULL;
-  if (pHead==NULL)
-  {
-   pHead = pTail = pTemp;
-  }
-  else
-  {
-   pTail->pNext = pTemp;
-   pTail = pTail->pNext;
-  }
-  //我们要为用户开辟新的线程
-  hThread = CreateThread(NULL,0,ClientThread,(LPVOID)pTemp,0,&ThreadID);
-  if (hThread==NULL)
-  {
-   free(pTemp);
+  pTail->pNext = &nTemp;
+  pTail = pTail->pNext;
+ }
+ //我们要为用户开辟新的线程
+ hThread = CreateThread(NULL,0,ClientThread,(LPVOID)&nTemp,0,&ThreadID);
+ if (hThread==NULL)
+ {
    return false;
-  }
-  if (!AddThreadList(hThread,ThreadID))
-  {
-   free(pTemp);
-   return false;
-  }
+ }
+ if (!AddThreadList(hThread,ThreadID))
+ {
+  return false;
  }
  return true;
 }
  
 bool AddThreadList(HANDLE hThread,DWORD ThreadID)
 {
- pThread pTemp = (pThread)malloc(sizeof(Thread)); 
- if (pTemp==NULL)
+ Thread nTemp = { 0 };
+ nTemp.hThread = hThread;
+ nTemp.ThreadID = ThreadID;
+ nTemp.pNext = NULL; 
+ if (pHeadThread==NULL)
  {
-  printf("No Memory\n"); 
-  return false;
- }
+  pHeadThread = pTailThread = &nTemp;
+ } 
  else
  {
-  pTemp->hThread = hThread;
-  pTemp->ThreadID = ThreadID;
-  pTemp->pNext = NULL; 
-  if (pHeadThread==NULL)
-  {
-   pHeadThread = pTailThread = pTemp;
-  } 
-  else
-  {
-   pTailThread->pNext = pTemp;  
-   pTailThread = pTailThread->pNext;
-  }
+  pTailThread->pNext = &nTemp;  
+  pTailThread = pTailThread->pNext;
  }
  return true;
 }
