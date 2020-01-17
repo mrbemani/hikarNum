@@ -3,7 +3,7 @@
 // server constants
 #define MAX_BUFFER   100000
 #define SENDBLOCK   200000
-#define SERVERNAME   "BI_HikarNum/0.1a"
+#define SERVERNAME   "ButterflyIllusion_HikarNum/0.2a"
 
 
 // callback function
