@@ -331,7 +331,7 @@ int req_carnum(BYTE iLane, char result[255])
 
 int main(int argc, char *argv[])
 {
-
+	
 	if (argc > 1) 
 	{
 		sprintf(sDVRIP, "%s", argv[1]);
@@ -343,6 +343,8 @@ int main(int argc, char *argv[])
 	{
 		HTTP_PORT = atoi(argv[2]);
 	}
+
+	//** capture section start
 
 	Init();//初始化sdk
 	Connect();//设置连接事件与重连时间			  	
@@ -366,12 +368,16 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 	printf("Armed.\n");
+	
+	// capture section end */
 
 	// start http server
 	while (1)
 	{
 		// restart server after specific number of requests
-		start_http_server(HTTP_PORT, req_carnum, 30);
+		start_http_server(HTTP_PORT, req_carnum, 10);
+		printf("Restarting HTTP Server...\n");
+		Sleep(200);
 	}
 
 	atexit(OnExit);//退出

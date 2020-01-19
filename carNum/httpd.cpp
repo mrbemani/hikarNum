@@ -34,6 +34,7 @@ p_ts_http_callback_func _callback_func = NULL;
 BYTE capture_lane_number = 1;
 unsigned short uPort = 17000;
 unsigned short MAX_REQUEST = 50;
+unsigned short uRequestCount = 0;
 
 int start_http_server(unsigned short port, p_ts_http_callback_func http_req_callback_func, unsigned short uMaxRequestCount = 50)
 {
@@ -87,7 +88,7 @@ DWORD WINAPI AcceptThread()   // receive thread
 		printf("Bind Error\n");
 		return -1;
 	}
-	printf("Start listening on: %s %d\n", INADDR_ANY, uPort);
+	printf("Start listening on: %d\n", uPort);
 	// start listening
 	listen(sListen,5);
 	// create an event
@@ -105,8 +106,8 @@ DWORD WINAPI AcceptThread()   // receive thread
 	sockaddr_in ClientAddr;
 	int nLen = sizeof(ClientAddr);
 	DWORD dwIndex = 0;
-	unsigned short uRequestCount = 0;
-	while (uRequestCount < MAX_REQUEST)
+	int bReq = 0;
+	while (bReq == 0)
 	{
 		dwIndex = WSAWaitForMultipleEvents(1,&Event,FALSE,WSA_INFINITE,FALSE);
 		dwIndex = dwIndex - WAIT_OBJECT_0;
@@ -133,12 +134,15 @@ DWORD WINAPI AcceptThread()   // receive thread
 					Node nTemp = { 0 };
 					nTemp.Addr = ClientAddr;
 					nTemp.s = sClient;
-					uRequestCount += 1;
+					bReq = 1;
 					ClientThread(&nTemp);
+					closesocket(sClient);
 				}
 			}
 		}
 	}
+	closesocket(sListen);
+	CloseHandle(Event);
 	return 0;
 }
  
@@ -158,8 +162,10 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
 	}
 	int Ret = WSAEventSelect(sClient, Event, FD_READ | FD_WRITE | FD_CLOSE); //关联事件和套接字
 	DWORD dwIndex = 0;
-	while (1)
+	uRequestCount = 0;
+	do
 	{
+
 		dwIndex = WSAWaitForMultipleEvents(1,&Event,FALSE,WSA_INFINITE,FALSE);
 		dwIndex = dwIndex - WAIT_OBJECT_0;
 		if (dwIndex==WSA_WAIT_TIMEOUT||dwIndex==WSA_WAIT_FAILED)
@@ -210,8 +216,10 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
 		if(NetWorkEvent.lNetworkEvents & FD_CLOSE)
 		{
 			//在这里我没有处理，我们要将内存进行释放否则内存泄露
+
 		}
-	}
+		uRequestCount += 1;
+	} while (uRequestCount < MAX_REQUEST);
 	return 0;
 }
  
@@ -261,7 +269,7 @@ bool ParseRequest(char* szRequest, char* szResponse, BOOL &bKeepAlive)
 		char* s_http_1_x = strstr(pTemp, " HTTP/1.");
 		pos_http_1_x = s_http_1_x - pTemp;
 		memcpy(szFileName, pTemp, pos_http_1_x);
-		printf("[%s] %s\n", szMode, szFileName);
+		printf("(Req:%u) [%s] %s\n", uRequestCount, szMode, szFileName);
 		if (strstr(szFileName, "/capture") == szFileName)
 		{
 			capture_lane_number = 1;
