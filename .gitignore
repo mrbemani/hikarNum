@@ -1,7 +1,9 @@
 Release/*
 x64/*
+.vs/
 *.pdb
 *.ipdb
 *.iobj
 *.tlog
 *.log
+*.vcxproj
