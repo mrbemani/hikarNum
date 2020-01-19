@@ -1,5 +1,7 @@
 Release/*
 x64/*
+carNum/Release
+carNum/x64
 .vs/
 *.pdb
 *.ipdb
