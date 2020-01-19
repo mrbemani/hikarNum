@@ -368,7 +368,11 @@ int main(int argc, char *argv[])
 	printf("Armed.\n");
 
 	// start http server
-	start_http_server(HTTP_PORT, req_carnum);
+	while (1)
+	{
+		// restart server after specific number of requests
+		start_http_server(HTTP_PORT, req_carnum, 30);
+	}
 
 	atexit(OnExit);//ÍË³ö
 	return 0;

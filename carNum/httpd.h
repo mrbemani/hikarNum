@@ -10,4 +10,4 @@
 typedef int(*p_ts_http_callback_func)(BYTE, char[255]);
 
 // start httpd server
-int start_http_server(unsigned short, p_ts_http_callback_func);
+int start_http_server(unsigned short, p_ts_http_callback_func, unsigned short);

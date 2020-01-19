@@ -25,7 +25,7 @@ typedef struct _THREAD_
 }Thread,*pThread;
  
 bool InitSocket();//线程函数
-DWORD WINAPI AcceptThread(LPVOID lpParam);
+DWORD WINAPI AcceptThread();
 DWORD WINAPI ClientThread(LPVOID lpParam);
 bool IoComplete(char* szRequest);     //数据包的校验函数
 bool ParseRequest(char* szRequest, char* szResponse, BOOL &bKeepAlive);
@@ -33,9 +33,12 @@ bool ParseRequest(char* szRequest, char* szResponse, BOOL &bKeepAlive);
 p_ts_http_callback_func _callback_func = NULL;
 BYTE capture_lane_number = 1;
 unsigned short uPort = 17000;
+unsigned short MAX_REQUEST = 50;
 
-int start_http_server(unsigned short port, p_ts_http_callback_func http_req_callback_func)
+int start_http_server(unsigned short port, p_ts_http_callback_func http_req_callback_func, unsigned short uMaxRequestCount = 50)
 {
+	MAX_REQUEST = uMaxRequestCount;
+
 	if (!InitSocket())
 	{
 		printf("InitSocket Error\n");
@@ -59,12 +62,12 @@ int start_http_server(unsigned short port, p_ts_http_callback_func http_req_call
 	//WaitForSingleObject(hAcceptThread,INFINITE);
 
 	// sq update: call directly
-	AcceptThread(NULL);
+	AcceptThread();
 
 	return 0;
 }
  
-DWORD WINAPI AcceptThread(LPVOID lpParam)   // receive thread
+DWORD WINAPI AcceptThread()   // receive thread
 {
 	// create a listening socket
 	SOCKET sListen = WSASocket(AF_INET,SOCK_STREAM,0,NULL,0,WSA_FLAG_OVERLAPPED); // 使用事件重叠的套接字
@@ -102,8 +105,8 @@ DWORD WINAPI AcceptThread(LPVOID lpParam)   // receive thread
 	sockaddr_in ClientAddr;
 	int nLen = sizeof(ClientAddr);
 	DWORD dwIndex = 0;
-	
-	while (1)
+	unsigned short uRequestCount = 0;
+	while (uRequestCount < MAX_REQUEST)
 	{
 		dwIndex = WSAWaitForMultipleEvents(1,&Event,FALSE,WSA_INFINITE,FALSE);
 		dwIndex = dwIndex - WAIT_OBJECT_0;
@@ -130,6 +133,7 @@ DWORD WINAPI AcceptThread(LPVOID lpParam)   // receive thread
 					Node nTemp = { 0 };
 					nTemp.Addr = ClientAddr;
 					nTemp.s = sClient;
+					uRequestCount += 1;
 					ClientThread(&nTemp);
 				}
 			}
@@ -196,7 +200,7 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
 			do
 			{
 				Buffers.len = (strlen(szResponse) - dwBytesSent) >= SENDBLOCK ? SENDBLOCK : strlen(szResponse) - dwBytesSent; 
-				Buffers.buf = (char*)((DWORD)szResponse + dwBytesSent);  
+				Buffers.buf = (char*)(((DWORD)szResponse) + dwBytesSent);
 				Ret = WSASend(sClient, &Buffers, 1, &NumberOfBytesSent, 0, 0, NULL);
 				if (SOCKET_ERROR != Ret)
 					dwBytesSent += NumberOfBytesSent;
