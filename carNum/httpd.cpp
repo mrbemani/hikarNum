@@ -3,6 +3,7 @@
 #include <Winsock2.h>
 #include <windows.h>
 #include <stdio.h>
+#include <iostream>
 #include <string.h>
 #include <time.h>
 #include "httpd.h"
@@ -109,21 +110,26 @@ DWORD WINAPI AcceptThread()   // receive thread
 	int bReq = 0;
 	while (bReq == 0)
 	{
-		dwIndex = WSAWaitForMultipleEvents(1,&Event,FALSE,WSA_INFINITE,FALSE);
+		std::cout << "WSAWaitForMultipleEvents" << std::endl;
+		dwIndex = WSAWaitForMultipleEvents(1,&Event,FALSE,3000,FALSE);
 		dwIndex = dwIndex - WAIT_OBJECT_0;
 		if (dwIndex==WSA_WAIT_TIMEOUT||dwIndex==WSA_WAIT_FAILED)
 		{
 			continue;
 		}
+		printf("AcceptThread(): dwIndex is OK\n");
 		//如果有真正的事件我们就进行判断
 		WSAEnumNetworkEvents(sListen,Event,&NetWorkEvent);
 		ResetEvent(&Event);   //
 		if (NetWorkEvent.lNetworkEvents == FD_ACCEPT)
 		{
+			std::cout << "NetWorkEvent == FD_ACCEPT" << std::endl;
 			if (NetWorkEvent.iErrorCode[FD_ACCEPT_BIT]==0)
 			{
+				printf("FD_ACCEPT_BIT == 0\n");
 				//我们要为新的连接进行接受并申请内存存入链表中
 				SOCKET sClient = WSAAccept(sListen, (sockaddr*)&ClientAddr, &nLen, NULL, NULL);
+				printf("sClient == %d\n", sClient);
 				if (sClient==INVALID_SOCKET)
 				{
 					continue;
@@ -136,9 +142,18 @@ DWORD WINAPI AcceptThread()   // receive thread
 					nTemp.s = sClient;
 					bReq = 1;
 					ClientThread(&nTemp);
+					std::cout << "ClientThread finished" << std::endl;
 					closesocket(sClient);
 				}
 			}
+			else
+			{
+				printf("NetWorkEvent.iErrorCode[FD_ACCEPT_BIT] = %x", NetWorkEvent.iErrorCode);
+			}
+		}
+		else
+		{
+			std::cout << "NetworkEvent: " << NetWorkEvent.lNetworkEvents << std::endl;
 		}
 	}
 	closesocket(sListen);
@@ -148,6 +163,7 @@ DWORD WINAPI AcceptThread()   // receive thread
  
 DWORD WINAPI ClientThread(LPVOID lpParam)
 {
+	std::cout << "ClientThread() start" << std::endl;
 	//我们将每个用户的信息以参数的形式传入到该线程
 	pNode pTemp = (pNode)lpParam;
 	SOCKET sClient = pTemp->s; //这是通信套接字
@@ -165,11 +181,12 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
 	uRequestCount = 0;
 	do
 	{
-
-		dwIndex = WSAWaitForMultipleEvents(1,&Event,FALSE,WSA_INFINITE,FALSE);
+		std::cout << "do while 1st line" << std::endl;
+		dwIndex = WSAWaitForMultipleEvents(1,&Event,FALSE,INFINITE,FALSE);
 		dwIndex = dwIndex - WAIT_OBJECT_0;
 		if (dwIndex==WSA_WAIT_TIMEOUT||dwIndex==WSA_WAIT_FAILED)
 		{
+			std::cout << "dwIndex==WSA_WAIT_TIMEOUT || dwIndex==WSA_WAIT_FAILED" << std::endl;
 			continue;
 		}
 		// 分析什么网络事件产生
@@ -177,6 +194,7 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
 		//其他情况
 		if ( !NetWorkEvent.lNetworkEvents )
 		{
+			std::cout << "!NetWorkEvent.lNetworkEvents" << std::endl;
 			continue;
 		}
 		if ( NetWorkEvent.lNetworkEvents & FD_READ ) //这里很有意思的
@@ -193,11 +211,13 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
 			memcpy(szRequest,szBuffer,NumberOfBytesRecvd);
 			if (!IoComplete(szRequest)) //校验数据包
 			{
+				std::cout << "!IoComplete" << std::endl;
 				continue;
 			}
 			if (!ParseRequest(szRequest, szResponse, bKeepAlive)) //分析数据包
 			{
 				//我在这里就进行了简单的处理
+				std::cout << "!ParseRequest" << std::endl;
 				continue;
 			}
 			DWORD NumberOfBytesSent = 0;
@@ -280,12 +300,12 @@ bool ParseRequest(char* szRequest, char* szResponse, BOOL &bKeepAlive)
 		}
 		else
 		{
-			return false;
+			return true;
 		}
 	}
 	else
 	{
-		return false;
+		return true;
 	}
 	// 分析链接类型
 	pTemp = strstr(szRequest, "\nConnection: Keep-Alive");  //协议版本
