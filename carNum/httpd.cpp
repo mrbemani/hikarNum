@@ -37,6 +37,7 @@ unsigned short uPort = 17000;
 unsigned short MAX_REQUEST = 50;
 unsigned short uRequestCount = 0;
 
+
 int start_http_server(unsigned short port, p_ts_http_callback_func http_req_callback_func, unsigned short uMaxRequestCount = 50)
 {
 	MAX_REQUEST = uMaxRequestCount;
@@ -65,6 +66,8 @@ int start_http_server(unsigned short port, p_ts_http_callback_func http_req_call
 
 	// sq update: call directly
 	AcceptThread();
+
+	WSACleanup();
 
 	return 0;
 }
@@ -98,7 +101,7 @@ DWORD WINAPI AcceptThread()   // receive thread
 	{
 		printf("Create WSAEVENT Error\n");
 		closesocket(sListen);
-		CloseHandle(Event);     // creating event failed, closing socket, closing event.
+		WSACloseEvent(Event);     // creating event failed, closing socket, closing event.
 		return -1;
 	}
 	// 将监听套接字与事件进行关联属性为Accept
@@ -108,10 +111,10 @@ DWORD WINAPI AcceptThread()   // receive thread
 	int nLen = sizeof(ClientAddr);
 	DWORD dwIndex = 0;
 	int bReq = 0;
-	while (bReq == 0)
+	while (1)
 	{
 		std::cout << "WSAWaitForMultipleEvents" << std::endl;
-		dwIndex = WSAWaitForMultipleEvents(1,&Event,FALSE,3000,FALSE);
+		dwIndex = WSAWaitForMultipleEvents(1,&Event,FALSE,INFINITE,FALSE);
 		dwIndex = dwIndex - WAIT_OBJECT_0;
 		if (dwIndex==WSA_WAIT_TIMEOUT||dwIndex==WSA_WAIT_FAILED)
 		{
@@ -143,7 +146,7 @@ DWORD WINAPI AcceptThread()   // receive thread
 					bReq = 1;
 					ClientThread(&nTemp);
 					std::cout << "ClientThread finished" << std::endl;
-					closesocket(sClient);
+					if (sClient!=INVALID_SOCKET) closesocket(sClient);
 				}
 			}
 			else
@@ -157,7 +160,7 @@ DWORD WINAPI AcceptThread()   // receive thread
 		}
 	}
 	closesocket(sListen);
-	CloseHandle(Event);
+	WSACloseEvent(Event);
 	return 0;
 }
  
@@ -182,13 +185,14 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
 	do
 	{
 		std::cout << "do while 1st line" << std::endl;
-		dwIndex = WSAWaitForMultipleEvents(1,&Event,FALSE,INFINITE,FALSE);
+		dwIndex = WSAWaitForMultipleEvents(1,&Event,FALSE,5000,FALSE);
 		dwIndex = dwIndex - WAIT_OBJECT_0;
 		if (dwIndex==WSA_WAIT_TIMEOUT||dwIndex==WSA_WAIT_FAILED)
 		{
 			std::cout << "dwIndex==WSA_WAIT_TIMEOUT || dwIndex==WSA_WAIT_FAILED" << std::endl;
 			continue;
 		}
+		std::cout << "WSAWaitForMultipleEvents" << std::endl;
 		// 分析什么网络事件产生
 		Ret = WSAEnumNetworkEvents(sClient,Event,&NetWorkEvent);
 		//其他情况
@@ -197,21 +201,22 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
 			std::cout << "!NetWorkEvent.lNetworkEvents" << std::endl;
 			continue;
 		}
+		std::cout << "WSAEnumNetworkEvents" << std::endl;
 		if ( NetWorkEvent.lNetworkEvents & FD_READ ) //这里很有意思的
 		{
 			DWORD NumberOfBytesRecvd;
-			WSABUF Buffers;
 			DWORD dwBufferCount = 1;
 			char szBuffer[MAX_BUFFER];
 			DWORD Flags = 0;
+			WSABUF Buffers = { 0 };
 			Buffers.buf = szBuffer;
 			Buffers.len = MAX_BUFFER;
 			Ret = WSARecv(sClient,&Buffers,dwBufferCount,&NumberOfBytesRecvd,&Flags,NULL,NULL);
+			std::cout << "WSARecv: " << szRequest << std::endl;
 			//我们在这里要检测是否得到的完整请求
 			memcpy(szRequest,szBuffer,NumberOfBytesRecvd);
 			if (!IoComplete(szRequest)) //校验数据包
 			{
-				std::cout << "!IoComplete" << std::endl;
 				continue;
 			}
 			if (!ParseRequest(szRequest, szResponse, bKeepAlive)) //分析数据包
@@ -220,9 +225,13 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
 				std::cout << "!ParseRequest" << std::endl;
 				continue;
 			}
+			else
+			{
+				std::cout << "- ParseRequest done -" << std::endl;
+			}
+			//发送响应到客户端
 			DWORD NumberOfBytesSent = 0;
 			DWORD dwBytesSent = 0;
-			//发送响应到客户端
 			do
 			{
 				Buffers.len = (strlen(szResponse) - dwBytesSent) >= SENDBLOCK ? SENDBLOCK : strlen(szResponse) - dwBytesSent; 
@@ -233,10 +242,13 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
 			}
 			while((dwBytesSent < strlen(szResponse)) && SOCKET_ERROR != Ret); 
 		}
-		if(NetWorkEvent.lNetworkEvents & FD_CLOSE)
+		if (NetWorkEvent.lNetworkEvents & FD_CLOSE)
 		{
 			//在这里我没有处理，我们要将内存进行释放否则内存泄露
-
+			printf("NetWorkEvent.lNetworkEvents & FD_CLOSE\n");
+			closesocket(sClient);
+			WSACloseEvent(Event);
+			return 0;
 		}
 		uRequestCount += 1;
 	} while (uRequestCount < MAX_REQUEST);
@@ -270,6 +282,7 @@ bool IoComplete(char* szRequest)
 //分析数据包
 bool ParseRequest(char* szRequest, char* szResponse, BOOL &bKeepAlive)
 {
+	std::cout << "start ParseRequest" << std::endl;
 	char* p = NULL;
 	p = szRequest;
 	int n = 0;
@@ -341,7 +354,8 @@ bool ParseRequest(char* szRequest, char* szResponse, BOOL &bKeepAlive)
 	}
 	length = strlen(BufferTemp);
 	// 返回响应
-	sprintf(pResponseHeader, "HTTP/1.0 %s\r\nDate: %s\r\nServer: %s\r\nAccept-Ranges: bytes\r\nContent-Length: %d\r\nConnection: %s\r\nContent-Type: %s\r\n\r\n",
+	sprintf(pResponseHeader, 
+		"HTTP/1.0 %s\r\nDate: %s\r\nServer: %s\r\nAccept-Ranges: bytes\r\nContent-Length: %d\r\nConnection: %s\r\nContent-Type: %s\r\n\r\n",
 		szStatusCode, szDT, SERVERNAME, length, bKeepAlive ? "Keep-Alive" : "close", szContentType);   //响应报文
 	strcpy(szResponse,pResponseHeader);
 	strcat(szResponse,BufferTemp);

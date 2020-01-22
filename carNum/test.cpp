@@ -67,6 +67,8 @@ time_t getUTCTimeStamp()
 	time_t ltime = getLocalTimeStamp();
 	struct tm* timeinfo = gmtime(&ltime); /* Convert to UTC */
 	ltime = mktime(timeinfo); /* Store as unix timestamp */
+
+	return ltime;
 }
 
 
@@ -344,7 +346,7 @@ int main(int argc, char *argv[])
 		HTTP_PORT = atoi(argv[2]);
 	}
 
-	/** capture section start
+	//** capture section start
 
 	Init();//初始化sdk
 	Connect();//设置连接事件与重连时间			  	
