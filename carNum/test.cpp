@@ -23,6 +23,7 @@
 
 using namespace std;
 
+using json = nlohmann::json;
 
 //参数声明
 LONG IUserID = NULL;	//摄像机设备
@@ -392,7 +393,8 @@ int main(int argc, char *argv[])
 		int iLaneNumber = atoi(matched_lane_number.str().c_str());
 		iLaneNumber = (iLaneNumber < 1) ? 1 : iLaneNumber;
 		req_carnum(iLaneNumber, szResult);
-		res.set_content(szResult, "text/plain");
+		json j = json::parse(szResult);
+		res.set_content(j.dump(), "text/plain");
 	});
 
 	printf("\nStarting http server...\n");
