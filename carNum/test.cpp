@@ -183,7 +183,6 @@ void error_to_str(DWORD err, char err_str[255])
 BOOL CALLBACK MSesGCallback(LONG lCommand, NET_DVR_ALARMER *pAlarmer, char *pAlarmInfo, DWORD dwBufLen, void* pUser)
 {
 	int i = 0;
-	char filename[100];
 	FILE *fSnapPic = NULL;
 	FILE *fSnapPicPlate = NULL;
 
@@ -390,7 +389,7 @@ int main(int argc, char *argv[])
 	svr.Get(R"(/capture/(\d+))", [&](const httplib::Request& req, httplib::Response& res) {
 		auto matched_lane_number = req.matches[1];
 		char szResult[255] = { 0 };
-		int iLaneNumber = atoi(lane_number.str().c_str());
+		int iLaneNumber = atoi(matched_lane_number.str().c_str());
 		iLaneNumber = (iLaneNumber < 1) ? 1 : iLaneNumber;
 		req_carnum(iLaneNumber, szResult);
 		res.set_content(szResult, "text/plain");
