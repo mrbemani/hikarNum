@@ -29,7 +29,7 @@ using json = nlohmann::json;
 LONG IUserID = NULL;	//摄像机设备
 LONG lAlarmHandle = NULL;	//布防句柄
 NET_DVR_DEVICEINFO_V30 struDeviceInfo;	//设备信息
-char plateResultBuff[255] = { 0 };	// 缓存BUFF
+std::string strPlateResult = "";	// 缓存BUFF
 BYTE laneNumber = 0; // 车道号
 time_t plateSnapTime = 0; // 抓取时间
 
@@ -268,21 +268,20 @@ BOOL CALLBACK MSesGCallback(LONG lCommand, NET_DVR_ALARMER *pAlarmer, char *pAla
 		laneNumber = struITSPlateResult.byDriveChan;
 
 		plateSnapTime = getLocalTimeStamp();
-		sprintf(plateResultBuff,
-			"{\"plateConfidence\": %d,"
-			" \"laneNumber\": %d,"
-			" \"plateType\": \"%s\","
-			" \"plateColor\": \"%s\","
-			" \"brightness\": %d,"
-			" \"license\": \"%s\"}",
-			struITSPlateResult.struPlateInfo.byEntireBelieve,
-			laneNumber,
-			strPlateType,
-			strPlateColor,
-			struITSPlateResult.struPlateInfo.byBright,
-			struITSPlateResult.struPlateInfo.sLicense
-		);
-		printf("plate captured: %s", plateResultBuff);
+
+		json jPlateResult = {
+			{"plateConfidence", struITSPlateResult.struPlateInfo.byEntireBelieve},
+			{"laneNumber", laneNumber},
+			{"plateType", strPlateType},
+			{"plateColor", strPlateColor},
+			{"brightness", struITSPlateResult.struPlateInfo.byBright},
+			{"license", struITSPlateResult.struPlateInfo.sLicense}
+		};
+
+		printf("plate captured: %s", jPlateResult.dump().c_str());
+
+		strPlateResult = jPlateResult.dump();
+
 		break;
 	}
 	default:
@@ -319,7 +318,7 @@ int req_carnum(BYTE iLane, char result[255])
 	if (timegap < 5)
 	{
 		std::cout << "time OK: now_t=" << now_t << " plateSnapTime=" << plateSnapTime << " timegap=" << timegap << std::endl;
-		memcpy(result, plateResultBuff, sizeof(plateResultBuff));
+		memcpy(result, strPlateResult.c_str(), strPlateResult.length());
 		printf("-------------------------------------------\n");
 		return TRUE;
 	}
@@ -393,8 +392,7 @@ int main(int argc, char *argv[])
 		int iLaneNumber = atoi(matched_lane_number.str().c_str());
 		iLaneNumber = (iLaneNumber < 1) ? 1 : iLaneNumber;
 		req_carnum(iLaneNumber, szResult);
-		json j = json::parse(szResult);
-		res.set_content(j.dump(), "text/plain");
+		res.set_content(szResult, "application/json");
 	});
 
 	printf("\nStarting http server...\n");
