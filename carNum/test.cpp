@@ -13,7 +13,8 @@
 #include <streambuf>
 #include "HCNetSDK.h"
 #include <time.h>
-#include "httpd.h"
+#include "httplib.h"
+#include "json.hpp"
 
 #pragma comment(lib,"HCNetSDK.lib")
 #pragma comment(lib,"PlayCtrl.lib")
@@ -384,13 +385,19 @@ int main(int argc, char *argv[])
 	// capture section end */
 
 	// start http server
-	while (1)
-	{
-		// restart server after specific number of requests
-		start_http_server(HTTP_PORT, req_carnum, 10);
-		printf("Restarting HTTP Server...\n");
-		Sleep(200);
-	}
+	httplib::Server svr;
+	
+	svr.Get(R"(/capture/(\d+))", [&](const httplib::Request& req, httplib::Response& res) {
+		auto matched_lane_number = req.matches[1];
+		char szResult[255] = { 0 };
+		int iLaneNumber = atoi(lane_number.str().c_str());
+		iLaneNumber = (iLaneNumber < 1) ? 1 : iLaneNumber;
+		req_carnum(iLaneNumber, szResult);
+		res.set_content(szResult, "text/plain");
+	});
+
+	printf("\nStarting http server...\n");
+	svr.listen("0.0.0.0", HTTP_PORT);
 
 	atexit(OnExit);//ÍË³ö
 	return 0;
