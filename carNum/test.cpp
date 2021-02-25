@@ -32,10 +32,10 @@ BYTE laneNumber = 0; // 车道号
 time_t plateSnapTime = 0; // 抓取时间
 
 u_short HTTP_PORT = 17000;
-char sDVRIP[20] = "192.168.1.65";	//抓拍摄像机设备IP地址
+char sDVRIP[20] = "192.168.0.1";	//抓拍摄像机设备IP地址
 short wDVRPort = 8000;	//设备端口号
 char sUserName[20] = "admin";	//登录的用户名
-char sPassword[20] = "jtsjy123456";	//用户密码
+char sPassword[20] = "admin";	//用户密码
 string carNum;//车牌号							
 
 
@@ -338,12 +338,22 @@ int main(int argc, char *argv[])
 	{
 		sprintf(sDVRIP, "%s", argv[1]);
 	}
+	else
+	{
+		printf("\nUsage: \n\t%s CAMERA_IP PROGRAM_SERVING_PORT CAMERA_USERNAME CAMERA_PASSWORD\n\n", argv[0]);
+	}
 
 
 
 	if (argc > 2)
 	{
 		HTTP_PORT = atoi(argv[2]);
+	}
+
+	if (argc > 4)
+	{
+		sprintf(sUserName, "%s", argv[3]);
+		sprintf(sPassword, "%s", argv[4]);
 	}
 
 	//** capture section start
