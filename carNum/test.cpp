@@ -14,7 +14,6 @@
 #include "HCNetSDK.h"
 #include <time.h>
 #include "httplib.h"
-#include "json.hpp"
 
 #pragma comment(lib,"HCNetSDK.lib")
 #pragma comment(lib,"PlayCtrl.lib")
@@ -23,7 +22,6 @@
 
 using namespace std;
 
-using json = nlohmann::json;
 
 //参数声明
 LONG IUserID = NULL;	//摄像机设备
@@ -269,18 +267,18 @@ BOOL CALLBACK MSesGCallback(LONG lCommand, NET_DVR_ALARMER *pAlarmer, char *pAla
 
 		plateSnapTime = getLocalTimeStamp();
 
-		json jPlateResult = {
-			{"plateConfidence", struITSPlateResult.struPlateInfo.byEntireBelieve},
-			{"laneNumber", laneNumber},
-			{"plateType", strPlateType},
-			{"plateColor", strPlateColor},
-			{"brightness", struITSPlateResult.struPlateInfo.byBright},
-			{"license", struITSPlateResult.struPlateInfo.sLicense}
-		};
+		char szResult[255] = { 0 };
 
-		printf("plate captured: %s", jPlateResult.dump().c_str());
+		sprintf(szResult, 
+			"{\"plateConfidence\": %d, \"laneNumber\": %d, \"plateType\": \"%s\","
+			"\"plateColor\": \"%s\", \"brightness\": %d, \"license\": \"%s\"}", 
+			struITSPlateResult.struPlateInfo.byEntireBelieve,
+			laneNumber, strPlateType, strPlateColor, 
+			struITSPlateResult.struPlateInfo.byBright,
+			struITSPlateResult.struPlateInfo.sLicense
+		);
 
-		strPlateResult = jPlateResult.dump();
+		strPlateResult = std::string(szResult);
 
 		break;
 	}
@@ -308,7 +306,7 @@ void OnExit(void)
 	NET_DVR_Cleanup();//释放SDK资源	
 }
 
-int req_carnum(BYTE iLane, char result[255])
+BOOL req_carnum(BYTE iLane)
 {
 	//sprintf(result, "Hello, %d", iLane);
 	//if (iLane != laneNumber) return FALSE;
@@ -318,14 +316,12 @@ int req_carnum(BYTE iLane, char result[255])
 	if (timegap < 5)
 	{
 		std::cout << "time OK: now_t=" << now_t << " plateSnapTime=" << plateSnapTime << " timegap=" << timegap << std::endl;
-		memcpy(result, strPlateResult.c_str(), strPlateResult.length());
 		printf("-------------------------------------------\n");
 		return TRUE;
 	}
 	else
 	{
 		std::cout << "time NG: now_t=" << now_t << " plateSnapTime=" << plateSnapTime << " timegap=" << timegap << std::endl;
-		memset(result, 0, sizeof(result));
 		printf("-------------------------------------------\n");
 		return FALSE;
 	}
@@ -387,18 +383,40 @@ int main(int argc, char *argv[])
 	httplib::Server svr;
 	
 	svr.Get(R"(/capture/(\d+))", [&](const httplib::Request& req, httplib::Response& res) {
-		auto matched_lane_number = req.matches[1];
-		char szResult[255] = { 0 };
-		int iLaneNumber = atoi(matched_lane_number.str().c_str());
-		iLaneNumber = (iLaneNumber < 1) ? 1 : iLaneNumber;
-		req_carnum(iLaneNumber, szResult);
-		res.set_content(szResult, "application/json");
+		try 
+		{
+			auto matched_lane_number = req.matches[1];
+			char szResult[5] = "null";
+			int iLaneNumber = atoi(matched_lane_number.str().c_str());
+			iLaneNumber = (iLaneNumber < 1) ? 1 : iLaneNumber;
+			if (req_carnum(iLaneNumber) == TRUE)
+			{
+				std::cout << strPlateResult << std::endl;
+				res.set_content(strPlateResult, "application/json");
+			}
+			else
+			{
+				res.set_content("null", "application/json");
+			}
+		}
+		catch (...)
+		{
+			printf("\n!!!error!!!\n");
+			res.set_content("null", "application/json");
+		}
+		
 	});
 
-	printf("\nStarting http server...\n");
-	svr.listen("0.0.0.0", HTTP_PORT);
-
 	atexit(OnExit);//退出
+
+	printf("\nStarting http server...\n");
+	if (!svr.listen("0.0.0.0", HTTP_PORT))
+	{
+		printf("\nserver closed!\n");
+	}
+
+	printf("\nserver interrupted!\n");
+	
 	return 0;
 
 }
